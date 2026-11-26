@@ -52,6 +52,52 @@ Document the actual Reynolds extraction sequence.
 
 Do not assume Reynolds extraction steps correspond to steps in Automate, AutoSoft or CDK.
 
+## Published API Contract: Vehicle Lookup
+
+This repository exposes a FastAPI backend. Dependent repositories (for example `automate-connector`) must use exactly this contract.
+
+### Endpoint
+
+`GET /vehicles/{vin}`
+
+- Path parameter `vin`: string, exactly 17 characters, letters and digits only, excluding `I`, `O` and `Q`. Lowercase input is accepted and normalised to uppercase before lookup.
+- No request body, no authentication headers required by this endpoint.
+
+### Response schema: `VehicleRecord`
+
+| Field | Type | Description |
+|---|---|---|
+| `vin` | string | 17-character upper-case VIN |
+| `make` | string | Vehicle make |
+| `model` | string | Vehicle model |
+| `year` | integer | Model year |
+
+Example `200` body:
+
+```json
+{"vin": "1HGCM82633A004352", "make": "Honda", "model": "Accord", "year": 2003}
+```
+
+### Status codes
+
+| Status | Meaning | Body |
+|---|---|---|
+| `200` | VIN found | `VehicleRecord` JSON |
+| `404` | Well-formed VIN not in the store | `{"detail": "Vehicle not found"}` |
+| `422` | VIN invalid (wrong length, contains `I`/`O`/`Q`, or non-alphanumeric) | FastAPI validation error body (`{"detail": [...]}`) |
+
+### Data source limitation
+
+The current lookup is an in-memory placeholder seeded with fixture VINs (`1HGCM82633A004352`, `5YJSA1E26HF000337`, `WBAPH5C55BA441234`). It is not backed by Reynolds DMS extraction yet and must not be treated as production data. Replace `VehicleStore` in `reynolds_connector/api/vehicles.py` when real extraction is wired in.
+
+### Running the tests
+
+```
+python -m pytest -q
+```
+
+Tests run offline using FastAPI `TestClient`.
+
 ## Repository Development Guidelines
 
 1. Preserve existing Reynolds extraction behaviour.
