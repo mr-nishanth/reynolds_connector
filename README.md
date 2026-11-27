@@ -1,25 +1,10 @@
 # Reynolds Connector
 
-## Overview
+## Project Overview
 
-The `reynolds-connector` repository contains the vendor-specific integration responsible for extracting dealership data from the Reynolds & Reynolds DMS and preparing it for migration into Tekion ARC.
+`reynolds-connector` is the vendor-specific integration for the Reynolds & Reynolds DMS. Its intended purpose is to extract dealership data from Reynolds and prepare it for migration into Tekion ARC.
 
-This connector owns its Reynolds-specific authentication, navigation, extraction workflows, data handling, transformation and migration behaviour.
-
-Reynolds workflows must be treated independently from all other vendor connectors.
-
-## Responsibilities
-
-- Connect to the authorized Reynolds DMS environment.
-- Authenticate using the existing supported authentication mechanism.
-- Navigate Reynolds-specific workflows.
-- Extract supported dealership data.
-- Handle Reynolds-specific extraction failures.
-- Transform extracted data into the required ARC-compatible format.
-- Preserve migration data integrity.
-- Report extraction and processing errors.
-
-## Vendor Identity
+This repository currently contains a small FastAPI service (the first step of the connector). The HTTP API is a sample surface with in-memory data; it does **not** yet implement any Reynolds DMS authentication, navigation or extraction behaviour.
 
 | Property | Value |
 |---|---|
@@ -28,29 +13,145 @@ Reynolds workflows must be treated independently from all other vendor connector
 | Target platform | Tekion ARC |
 | Connector type | Vendor-specific DMS connector |
 
-## Architecture
+## Prerequisites
 
-Document the actual implementation here:
+- Python 3.11 or newer
+- `pip` and the `venv` module (or another virtual environment tool)
 
-- Authentication mechanism: To be documented
-- Navigation mechanism: To be documented
-- Extraction workflow: To be documented
-- Supported data entities: To be documented
-- Transformation and mapping: To be documented
-- Error-handling strategy: To be documented
+## Project Structure
 
-## Vendor-Specific Workflow
+```
+reynolds-connector/
+├── pyproject.toml        # Project metadata and dependencies
+├── README.md             # This document
+├── app/
+│   ├── __init__.py       # Package marker; exposes `app`
+│   ├── main.py           # FastAPI application entry point, GET / and GET /health
+│   ├── schemas.py        # Pydantic request/response models
+│   ├── store.py          # In-memory item store (sample data)
+│   └── api/
+│       ├── __init__.py
+│       └── items.py      # /api/v1/items router
+└── tests/
+    ├── conftest.py       # Shared TestClient fixture and store reset
+    ├── test_root_health.py
+    └── test_items.py
+```
 
-Document the actual Reynolds extraction sequence.
+## Environment and Dependency Setup
 
-| Workflow | Extraction steps | Status |
-|---|---|---|
-| Customer data | To be documented | Pending |
-| Vehicle data | To be documented | Pending |
-| Deal data | To be documented | Pending |
-| Service data | To be documented | Pending |
+Dependencies are declared in `pyproject.toml`:
 
-Do not assume Reynolds extraction steps correspond to steps in Automate, AutoSoft or CDK.
+- Runtime: `fastapi`, `pydantic`, `uvicorn`
+- Development (optional extra `dev`): `pytest`, `httpx` (required by FastAPI's `TestClient`)
+
+Create and activate a virtual environment from the repository root:
+
+```bash
+python3.11 -m venv .venv          # any Python >= 3.11
+source .venv/bin/activate         # Windows: .venv\Scripts\activate
+```
+
+## Installation
+
+Install the project in editable mode with development dependencies:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+## Running the FastAPI Server
+
+From the repository root, with the virtual environment active:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The server listens on http://127.0.0.1:8000 by default.
+
+## Running Automated Tests
+
+```bash
+python -m pytest -q
+```
+
+Tests use FastAPI's `TestClient` and reset the in-memory store before each test; no running server is needed.
+
+## API Endpoints
+
+| Method | Path | Description | Success | Errors |
+|---|---|---|---|---|
+| GET | `/` | Welcome message | 200 | – |
+| GET | `/health` | Health status (`{"status": "ok"}`) | 200 | – |
+| GET | `/api/v1/items` | List sample items | 200 | – |
+| GET | `/api/v1/items/{item_id}` | Get an item by integer ID (≥ 1) | 200 | 404 unknown ID, 422 invalid ID |
+| POST | `/api/v1/items` | Create an item | 201 | 422 invalid payload |
+
+### Item Model
+
+Create request body (`POST /api/v1/items`):
+
+```json
+{
+  "name": "Example",
+  "description": "Optional text",
+  "price": 10.5
+}
+```
+
+- `name`: required, string, 1–100 characters.
+- `description`: optional string, up to 500 characters.
+- `price`: required number, must be `>= 0`.
+- Unknown extra fields are rejected with 422.
+
+Responses include the assigned `id` (integer):
+
+```json
+{
+  "id": 4,
+  "name": "Example",
+  "description": "Optional text",
+  "price": 10.5
+}
+```
+
+### Example Requests
+
+```bash
+curl http://127.0.0.1:8000/
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/api/v1/items
+curl http://127.0.0.1:8000/api/v1/items/1
+curl -X POST http://127.0.0.1:8000/api/v1/items \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Example", "price": 10.5}'
+```
+
+### Data Storage Limitation
+
+Items are stored in memory. Data is seeded with three sample items on start-up, is not persisted, and resets when the process restarts.
+
+## Swagger and API Documentation
+
+With the server running:
+
+- Swagger UI: http://127.0.0.1:8000/docs
+- ReDoc: http://127.0.0.1:8000/redoc
+- OpenAPI schema: http://127.0.0.1:8000/openapi.json
+
+## Development Workflow
+
+1. Create a branch for the change.
+2. Set up the environment and install with `python -m pip install -e ".[dev]"`.
+3. Make focused changes; keep routers in `app/api/`, models in `app/schemas.py`, and data access in `app/store.py`.
+4. Add or update tests in `tests/` for every behaviour change.
+5. Run `python -m pytest -q` and confirm all tests pass.
+6. Start the server with `uvicorn app.main:app --reload` and check `/docs` for manual verification.
+7. Inspect the complete `git diff` before opening a pull request. Confirm changes are limited to this connector.
+
+Note: no `.gitignore`, lint or type-check configuration is present in this repository yet.
 
 ## Published API Contract: Vehicle Lookup
 
@@ -108,37 +209,31 @@ Tests run offline using FastAPI `TestClient`.
 6. Avoid unrelated refactoring.
 7. Do not modify other vendor repositories.
 
+## Reynolds Connector Documentation Status
+
+The Reynolds-specific sections below remain to be documented against the source code. Do not treat them as complete.
+
+| Area | Status |
+|---|---|
+| Authentication mechanism | To be documented |
+| Navigation mechanism | To be documented |
+| Extraction workflow | To be documented |
+| Supported data entities | To be documented |
+| Transformation and mapping | To be documented |
+| Error-handling strategy | To be documented |
+
+| Reynolds workflow | Status |
+|---|---|
+| Customer data | Pending |
+| Vehicle data | Pending |
+| Deal data | Pending |
+| Service data | Pending |
+
+Do not assume Reynolds extraction steps correspond to steps in Automate, AutoSoft or CDK.
+
 ## AI Migration Agent Integration
 
-This repository is registered under the logical vendor identifier `REYNOLDS`.
-
-The central repository registry must resolve `REYNOLDS` to `reynolds-connector`.
-
-The AI Migration Agent may:
-
-- Investigate Reynolds-specific workflow failures.
-- Analyze relevant source files and dependencies.
-- Use Graphify to identify code relationships.
-- Identify the probable root cause.
-- Prepare a targeted implementation plan.
-- Modify relevant source files in an isolated Docker workspace.
-- Execute available tests.
-- Produce a Git diff for deterministic validation.
-
-Repository selection and access authorization remain backend responsibilities.
-
-## Testing and Validation
-
-Before creating a pull request:
-
-- Run relevant unit tests.
-- Run relevant integration tests where available.
-- Execute configured lint and type checks.
-- Inspect the complete Git diff.
-- Confirm changes are limited to the intended connector.
-- Check for unintended extraction and mapping regressions.
-
-Document actual commands after repository inspection.
+This repository is registered under the logical vendor identifier `REYNOLDS`. The central repository registry must resolve `REYNOLDS` to `reynolds-connector`. Repository selection and access authorization remain backend responsibilities.
 
 ## Security
 
@@ -146,9 +241,3 @@ Document actual commands after repository inspection.
 - Redact sensitive information from logs.
 - Use approved secure credential handling.
 - Preserve existing authentication and authorization controls.
-
-## Documentation Maintenance
-
-Update this README when Reynolds extraction workflows, supported entities, architecture or test procedures change.
-
-**Note:** Actual Reynolds implementation details must be verified against the source code before treating this documentation as complete.
