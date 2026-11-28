@@ -57,5 +57,8 @@ def get_vehicle(
 ) -> VehicleRecord:
     record = default_store.get(vin)
     if record is None:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+        vin_normalised = normalise_vin(vin)
+        raise HTTPException(
+            status_code=404, detail=f"Vehicle not found: {vin_normalised}"
+        )
     return record
