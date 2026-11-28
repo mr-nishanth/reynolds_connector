@@ -1,4 +1,10 @@
-"""VIN validation rules: exactly 17 characters, alphanumeric, no I, O or Q."""
+"""VIN validation rules: exactly 17 characters, alphanumeric, no I, O or Q.
+
+Usage example::
+
+    >>> normalise_vin("  1hgcm82633a004352 ")
+    '1HGCM82633A004352'
+"""
 
 import re
 
