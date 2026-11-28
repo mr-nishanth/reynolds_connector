@@ -26,7 +26,14 @@ def test_get_known_vehicle_returns_vehicle_record():
 def test_unknown_vin_returns_404():
     response = client.get("/vehicles/ZZZZZ0000000000ZZ")
     assert response.status_code == 404
-    assert response.json() == {"detail": "Vehicle not found"}
+    assert response.json() == {"detail": "Vehicle not found: ZZZZZ0000000000ZZ"}
+
+
+def test_unknown_lowercase_vin_returns_404_with_uppercase_vin():
+    response = client.get("/vehicles/zzzzz0000000000zz")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Vehicle not found: ZZZZZ0000000000ZZ"}
+    assert "ZZZZZ0000000000ZZ" in response.json()["detail"]
 
 
 def test_wrong_length_vin_returns_422():
